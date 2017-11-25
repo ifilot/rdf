@@ -1,7 +1,7 @@
 #!/usr/bin/env python2
 
 #
-# Purpose: Calculate theoretical Radial Distribution Function (RDF) for an FCC unit cell
+# Purpose: Calculate radial distribution function from a LAMMPS calculation
 # 
 # License:
 # 
@@ -14,25 +14,58 @@
 # work. If not, see <http://creativecommons.org/licenses/by/4.0/>.
 # 
 
+# import libraries
 import numpy, math
-from matplotlib.pyplot import plot, show
+import matplotlib.pyplot as plt
+import re
 
-# Ni bulk FCC
-lattice_constant = 3.52
+cutoff = 20 # angstrom
+filename = sys.argv[2]
 
-fcc_unitcell = lattice_constant * numpy.matrix([[0.5, 0.5, 0.0],[0.5, 0.0, 0.5],[0.0, 0.5, 0.5]])
-fcc_atoms = numpy.matrix([0.0, 0.0, 0.0])
+def grab_atoms(fhandle, nr_atoms):
+	"""
+	@brief      grab atoms from file handler
+	
+	@param      fhandle   file reading handle (object of "open command")
+	@param      nr_atoms  nr of atom lines
+	
+	@return     Nx3 matrix of atoms
+	"""
+	atoms = numpy.zeros([0,3])
+	for i in range(0, nr_atoms):
+		line = fhandle.readline()
+		m = re.match(r"(\d+) ([\d.]+) ([\d.]+) ([\d.]+)", line)
+		x = float(m.group(2));
+		y = float(m.group(3));
+		z = float(m.group(4));
+		atoms = numpy.vstack([atoms, numpy.array([x,y,z])])
+	return atoms
 
-bcc_unitcell = lattice_constant * numpy.matrix([[-0.5, 0.5, 0.5],[0.5, -0.5, 0.5],[0.5, 0.5, -0.5]])
-bcc_atoms = numpy.matrix([0.0, 0.0, 0.0])
+def read_atom_set_from_file(filename):
+	"""
+	@brief      Read for each snapshot the atoms
+	
+	@param      filename  The filename
+	
+	@return     array containing matrices of atoms
+	"""
+	f = open(filename, 'r')
+	nr_atoms = int(f.readline())
+	snapshots = []
+	while nr_atoms > 0:
+		f.readline() # skip line
+		snapshots.append(grab_atoms(f, nr_atoms))
+		line = f.readline()
+		if line:
+			nr_atoms = int(line)
+		else:
+			nr_atoms = 0
+	return snapshots
 
-cutoff = 10 # angstrom
-
-def calculate_rdf(unitcell, atoms, binsize, cutoff):
+def calculate_rdf(atoms, binsize, cutoff):
 	"""
 	@brief      Calculates the rdf.
 	
-	@param      unitcell  The unitcell
 	@param      atoms     The atoms
 	@param      binsize   The binsize
 	@param      cutoff    The cutoff
@@ -44,28 +77,13 @@ def calculate_rdf(unitcell, atoms, binsize, cutoff):
 	nr_bins = int(math.ceil(cutoff / binsize))
 	nr_atoms = atoms.shape[0]
 
-	# expand unit cell
-	expanded_cell_atoms = numpy.zeros([0,3])
-	dp = int(math.ceil(cutoff / numpy.linalg.norm(unitcell[0])))
-	for p in range(-dp, dp):
-		dq = int(math.ceil(cutoff / numpy.linalg.norm(unitcell[1])))
-		for q in range(-dq, dq):
-			dr = int(math.ceil(cutoff / numpy.linalg.norm(unitcell[2])))
-			for r in range(-dr, dr):
-				if p is 0 and q is 0 and r is 0:
-					continue
-				for i in range(0, nr_atoms):
-					expanded_cell_atoms = numpy.vstack([expanded_cell_atoms, atoms[i]+numpy.array([p,q,r])])
-
 	# count distances
-	nr_expanded_cell_atoms = expanded_cell_atoms.shape[0]
 	distances = []
 	for i in range(0, nr_atoms):
-		p1 = unitcell.dot(atoms[i].transpose())
-		for j in range(0, nr_expanded_cell_atoms):
-			p2 = unitcell.dot(expanded_cell_atoms[j].transpose())
-			d = numpy.linalg.norm(p1 - p2, 2)
-			distances.append(d)
+		for j in range(i+1, nr_atoms):
+			d = numpy.linalg.norm(atoms[i] - atoms[j], 2)
+			if d < cutoff:
+				distances.append(d)
 
 	# sort the distances
 	distances.sort()
@@ -81,28 +99,28 @@ def calculate_rdf(unitcell, atoms, binsize, cutoff):
 		r2 = (float(i) + 0.5) * binsize
 		rdf[2,i] = 4./3. * math.pi * (r2**3 - r1**3) # calculation shell volume
 
+		if r2 > distances[-1]:
+			continue
+
 		while(distances[idx] < r2):
 			rdf[1,i] += 1
 			idx += 1
 
-	# normalize for r0
+	# divide by volume
 	for i in range(0, nr_bins):
 		rdf[1,i] /= rdf[2,i]
 
-	# find value for first peak (for g0 normalization)
-	idx = 0
-	g0 = r0 = 0.0
-	while rdf[1,idx] < 0.1:
-		idx += 1
-		g0 = rdf[1,idx]
-		r0 = rdf[0,idx]
+	return rdf
 
-	# normalize for g0
-	for i in range(0, nr_bins):
-		rdf[1,i] /= g0
-		rdf[0,i] /= r0
+# collect all data from file
+snapshots = read_atom_set_from_file(filename)
+nr_snapshots = len(snapshots)
+print "Read %i datasets" % nr_snapshots
 
-	plot(rdf[0], rdf[1], '-o')
-	show()
-
-calculate_rdf(fcc_unitcell, fcc_atoms, 0.1, cutoff)
+# produce a rdf graph for each snapshot and store on the HD
+for i in range(1, nr_snapshots):
+	rdf = calculate_rdf(snapshots[i], 0.1, cutoff)
+	plt.plot(rdf[0], rdf[1], '-o')
+	x1,x2,y1,y2 = plt.axis()
+	plt.axis((x1,x2,0,200))
+	plt.savefig("%04i.png" % i)
