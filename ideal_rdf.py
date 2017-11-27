@@ -2,9 +2,9 @@
 
 #
 # Purpose: Calculate theoretical Radial Distribution Function (RDF) for an FCC unit cell
-# 
+#
 # License:
-# 
+#
 # calculate_rdf.py (c) by Ivo Filot <i.a.w.filot@tue.nl>
 #
 # calculate_rdf.py is licensed under a
@@ -12,33 +12,45 @@
 #
 # You should have received a copy of the license along with this
 # work. If not, see <http://creativecommons.org/licenses/by/4.0/>.
-# 
+#
 
 import numpy, math
-from matplotlib.pyplot import plot, show
+from matplotlib import pyplot as plt
 
-# Ni bulk FCC
-lattice_constant = 2.50 * math.sqrt(2)
+#
+# assume Co here
+#
 
-fcc_unitcell = lattice_constant * numpy.matrix([[0.5, 0.5, 0.0],[0.5, 0.0, 0.5],[0.0, 0.5, 0.5]])
+fcc_unitcell = 2.50 * math.sqrt(2) * numpy.matrix([[0.5, 0.5, 0.0],[0.5, 0.0, 0.5],[0.0, 0.5, 0.5]])
 fcc_atoms = numpy.matrix([0.0, 0.0, 0.0])
+fcc = [fcc_unitcell, fcc_atoms, 'fcc']
 
-bcc_unitcell = lattice_constant * numpy.matrix([[-0.5, 0.5, 0.5],[0.5, -0.5, 0.5],[0.5, 0.5, -0.5]])
+bcc_unitcell = 2.50 * math.sqrt(2) * numpy.matrix([[-0.5, 0.5, 0.5],[0.5, -0.5, 0.5],[0.5, 0.5, -0.5]])
 bcc_atoms = numpy.matrix([0.0, 0.0, 0.0])
+bcc = [bcc_unitcell, bcc_atoms, 'bcc']
 
-cutoff = 20 # angstrom
+hcp_unitcell = 2.50 * numpy.matrix([[1.0, 0.0, 0.0],[-0.5,math.sqrt(3.0)/2,0.0],[0.0,0.0,1.62]])
+hcp_atoms = numpy.matrix([[0.0, 0.0, 0.0],[0.333,0.667,0.5]])
+hcp = [hcp_unitcell, hcp_atoms, 'hcp']
 
-def calculate_rdf(unitcell, atoms, binsize, cutoff):
+sc_unitcell = 2.50 * numpy.matrix([[1.0, 0.0, 0.0],[0.0,1.0,0.0],[0.0,0.0,1.0]])
+sc_atoms = numpy.matrix([[0.0, 0.0, 0.0]])
+sc = [sc_unitcell, sc_atoms, 'sc']
+
+def calculate_rdf(struc, binsize, cutoff):
 	"""
 	@brief      Calculates the rdf.
-	
+
 	@param      unitcell  The unitcell
 	@param      atoms     The atoms
 	@param      binsize   The binsize
 	@param      cutoff    The cutoff
-	
+
 	@return     The rdf.
 	"""
+
+	# expand
+	[unitcell, atoms, title] = struc
 
 	# collect sizes
 	nr_bins = int(math.ceil(cutoff / binsize))
@@ -61,9 +73,13 @@ def calculate_rdf(unitcell, atoms, binsize, cutoff):
 	nr_expanded_cell_atoms = expanded_cell_atoms.shape[0]
 	distances = []
 	for i in range(0, nr_atoms):
-		p1 = unitcell.dot(atoms[i].transpose())
+		p1 = atoms[i].dot(unitcell)
+		for j in range(i+1, nr_atoms):
+			p2 = atoms[j].dot(unitcell)
+			d = numpy.linalg.norm(p1 - p2, 2)
+			distances.append(d)
 		for j in range(0, nr_expanded_cell_atoms):
-			p2 = unitcell.dot(expanded_cell_atoms[j].transpose())
+			p2 = expanded_cell_atoms[j].dot(unitcell)
 			d = numpy.linalg.norm(p1 - p2, 2)
 			distances.append(d)
 
@@ -89,20 +105,30 @@ def calculate_rdf(unitcell, atoms, binsize, cutoff):
 	for i in range(0, nr_bins):
 		rdf[1,i] /= rdf[2,i]
 
-	# # find value for first peak (for g0 normalization)
-	# idx = 0
-	# g0 = r0 = 0.0
-	# while rdf[1,idx] < 0.1:
-	# 	idx += 1
-	# 	g0 = rdf[1,idx]
-	# 	r0 = rdf[0,idx]
+	return rdf
 
-	# # normalize for g0
-	# for i in range(0, nr_bins):
-	# 	rdf[1,i] /= g0
-	# 	rdf[0,i] /= r0
 
-	plot(rdf[0], rdf[1], '-o')
-	show()
+rdf_fcc = calculate_rdf(fcc, 0.01, 7)
+rdf_hcp = calculate_rdf(hcp, 0.01, 7)
+rdf_bcc = calculate_rdf(bcc, 0.01, 7)
+rdf_sc = calculate_rdf(sc, 0.01, 7)
 
-calculate_rdf(fcc_unitcell, fcc_atoms, 0.1, cutoff)
+f, axarr = plt.subplots(2, 2)
+axarr[0, 0].plot(rdf_fcc[0], rdf_fcc[1])
+axarr[0, 0].set_title('FCC')
+axarr[0, 0].set_xlabel('Distance r in Angstrom')
+axarr[0, 0].set_ylabel('RDF g(r) [-]')
+axarr[0, 1].plot(rdf_hcp[0], rdf_hcp[1])
+axarr[0, 1].set_title('HCP')
+axarr[0, 1].set_xlabel('Distance r in Angstrom')
+axarr[0, 1].set_ylabel('RDF g(r) [-]')
+axarr[1, 0].plot(rdf_bcc[0], rdf_bcc[1])
+axarr[1, 0].set_title('BCC')
+axarr[1, 0].set_xlabel('Distance r in Angstrom')
+axarr[1, 0].set_ylabel('RDF g(r) [-]')
+axarr[1, 1].plot(rdf_sc[0], rdf_sc[1])
+axarr[1, 1].set_title('SC')
+axarr[1, 1].set_xlabel('Distance r in Angstrom')
+axarr[1, 1].set_ylabel('RDF g(r) [-]')
+f.subplots_adjust(hspace=0.5)
+plt.show()
