@@ -18,9 +18,10 @@
 import numpy, math
 import matplotlib.pyplot as plt
 import re
+import sys
 
-cutoff = 20 # angstrom
-filename = sys.argv[2]
+cutoff = 7 # angstrom
+filename = sys.argv[1]
 
 def grab_atoms(fhandle, nr_atoms):
 	"""
@@ -118,9 +119,8 @@ nr_snapshots = len(snapshots)
 print "Read %i datasets" % nr_snapshots
 
 # produce a rdf graph for each snapshot and store on the HD
-for i in range(1, nr_snapshots):
-	rdf = calculate_rdf(snapshots[i], 0.1, cutoff)
-	plt.plot(rdf[0], rdf[1], '-o')
-	x1,x2,y1,y2 = plt.axis()
-	plt.axis((x1,x2,0,200))
-	plt.savefig("%04i.png" % i)
+rdf = calculate_rdf(snapshots[-1], 0.1, cutoff)
+plt.plot(rdf[0], rdf[1], '-o')
+x1,x2,y1,y2 = plt.axis()
+plt.axis((x1,x2,0,200))
+plt.savefig("%04i.png" % 0)

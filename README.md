@@ -5,3 +5,5 @@ Calculates the Radial Distribution Function (RDF) given a unit cell and atoms in
 Currently hardcoded unit cells:
 * FCC
 * BCC
+* HCP
+* SC
