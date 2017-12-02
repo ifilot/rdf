@@ -16,6 +16,7 @@
 #include <cmath>
 #include <fstream>
 #include <chrono>
+#include <algorithm>
 
 #include "position.h"
 

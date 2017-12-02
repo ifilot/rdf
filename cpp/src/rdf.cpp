@@ -98,12 +98,35 @@ void RDF::construct_rdf(const std::vector<Position>* dataset, const std::string&
         rdf[i] = (float)rdf_count[i] / V;
     }
 
+    // perform normalization, use the last 2.5 Angstrom to get an average
+    size_t bin_start = this->nr_bins - (size_t)(2.5 / this->binsize);
+    float avg = 0;
+    for(size_t i=bin_start; i<this->nr_bins; i++) {
+        avg += rdf[i];
+    }
+    avg /= this->nr_bins - bin_start;
+    std::vector<float> rdf_normalized_tail(this->nr_bins);
+    for(size_t i=0; i<this->nr_bins; i++) {
+        rdf_normalized_tail[i] = rdf[i] / avg;
+    }
+
+    // perform another normalization, use the highest peak
+    const float max_element = *std::max_element(rdf.begin(),rdf.end());
+    std::vector<float> rdf_normalized_max(this->nr_bins);
+    for(size_t i=0; i<this->nr_bins; i++) {
+        rdf_normalized_max[i] = rdf[i] / max_element;
+    }
+
     // write results to file
     std::cout << "Writing results to " << filename << std::endl;
     std::ofstream outfile;
     outfile.open(filename);
     for(size_t i=0; i<this->nr_bins; i++) {
-        outfile << ((float)i + 0.5) * this->binsize << "\t" << rdf[i] << std::endl;
+        outfile << ((float)i + 0.5) * this->binsize
+                << "\t" << rdf[i]
+                << "\t" << rdf_normalized_tail[i]
+                << "\t" << rdf_normalized_max[i]
+                << std::endl;
     }
     outfile.close();
 }

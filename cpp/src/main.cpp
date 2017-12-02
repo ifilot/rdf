@@ -35,7 +35,7 @@ int main(int argc, char* argv[]) {
 
         FileParser fp(input_filename);
 
-        RDF rdf(10, 0.1);
+        RDF rdf(15, 0.05);
         rdf.construct_rdf(fp.get_dataset(-1), output_filename);
 
     } catch (TCLAP::ArgException &e) {
